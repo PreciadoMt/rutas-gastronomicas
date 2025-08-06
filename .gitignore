@@ -1,0 +1,7 @@
+# Evitar subir el entorno virtual y caché de Python
+env/
+__pycache__/
+*.pyc
+
+# Archivos de sistema
+.DS_Store

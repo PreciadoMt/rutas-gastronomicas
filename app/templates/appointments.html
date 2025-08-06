@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Calendario de Reservas - Rutas Gastronómicas{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-12">
+            <h2><i class="fas fa-calendar-alt me-2"></i>Calendario de Reservas</h2>
+            <hr>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>Todas las Reservas</h5>
+                    <button class="btn btn-primary" onclick="showCreateAppointmentModal()">
+                        <i class="fas fa-plus me-1"></i>Nueva Reserva
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="appointmentsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Usuario</th>
+                                    <th>Actividad</th>
+                                    <th>Fecha</th>
+                                    <th>Estado</th>
+                                    <th>Notas</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Datos cargados dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para crear/editar cita -->
+<div class="modal fade" id="appointmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="appointmentModalTitle">Nueva Reserva</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="appointmentForm">
+                    <input type="hidden" id="appointmentId">
+                    <div class="mb-3">
+                        <label for="userId" class="form-label">Usuario ID</label>
+                        <input type="number" class="form-control" id="userId" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="activitySelect" class="form-label">Actividad</label>
+                        <select class="form-select" id="activitySelect" required>
+                            <option value="">Selecciona una actividad</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="appointmentDateTime" class="form-label">Fecha y Hora</label>
+                        <input type="datetime-local" class="form-control" id="appointmentDateTime" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="appointmentNotes" class="form-label">Notas</label>
+                        <textarea class="form-control" id="appointmentNotes" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3" id="statusGroup" style="display: none;">
+                        <label for="appointmentStatus" class="form-label">Estado</label>
+                        <select class="form-select" id="appointmentStatus">
+                            <option value="scheduled">Programada</option>
+                            <option value="completed">Completada</option>
+                            <option value="cancelled">Cancelada</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveAppointment()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let appointmentModal;
+let isEditMode = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    appointmentModal = new bootstrap.Modal(document.getElementById('appointmentModal'));
+    loadAppointments();
+    loadActivities();
+});
+
+async function loadAppointments() {
+    try {
+        const response = await fetch('/appointments/');
+        const appointments = await response.json();
+        
+        const tbody = document.querySelector('#appointmentsTable tbody');
+        tbody.innerHTML = '';
+        
+        appointments.forEach(appointment => {
+            const row = document.createElement('tr');
+            const statusClass = appointment.status === 'completed' ? 'success' : 
+                               appointment.status === 'cancelled' ? 'danger' : 'primary';
+            
+            row.innerHTML = `
+                <td>${appointment.id}</td>
+                <td>${appointment.user.name} (${appointment.user.email})</td>
+                <td>${appointment.activity.name}</td>
+                <td>${new Date(appointment.appointment_date).toLocaleString()}</td>
+                <td><span class="badge bg-${statusClass}">${appointment.status}</span></td>
+                <td>${appointment.notes || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-warning me-1" onclick="editAppointment(${appointment.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteAppointment(${appointment.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error loading appointments:', error);
+    }
+}
+
+async function loadActivities() {
+    try {
+        const response = await fetch('/activities/');
+        const activities = await response.json();
+        
+        const select = document.getElementById('activitySelect');
+        select.innerHTML = '<option value="">Selecciona una actividad</option>';
+        
+        activities.forEach(activity => {
+            const option = document.createElement('option');
+            option.value = activity.id;
+            option.textContent = `${activity.name} - ${activity.cost}`;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading activities:', error);
+    }
+}
+
+function showCreateAppointmentModal() {
+    isEditMode = false;
+    document.getElementById('appointmentModalTitle').textContent = 'Nueva Reserva';
+    document.getElementById('appointmentForm').reset();
+    document.getElementById('statusGroup').style.display = 'none';
+    
+    // Establecer fecha mínima como mañana
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('appointmentDateTime').min = tomorrow.toISOString().slice(0, 16);
+    
+    appointmentModal.show();
+}
+
+async function editAppointment(appointmentId) {
+    try {
+        const response = await fetch(`/appointments/${appointmentId}`);
+        const appointment = await response.json();
+        
+        isEditMode = true;
+        document.getElementById('appointmentModalTitle').textContent = 'Editar Reserva';
+        document.getElementById('appointmentId').value = appointment.id;
+        document.getElementById('userId').value = appointment.user_id;
+        document.getElementById('activitySelect').value = appointment.activity_id;
+        document.getElementById('appointmentDateTime').value = appointment.appointment_date.slice(0, 16);
+        document.getElementById('appointmentNotes').value = appointment.notes || '';
+        document.getElementById('appointmentStatus').value = appointment.status;
+        document.getElementById('statusGroup').style.display = 'block';
+        
+        appointmentModal.show();
+    } catch (error) {
+        alert('Error al cargar la cita');
+    }
+}
+
+async function saveAppointment() {
+    const appointmentId = document.getElementById('appointmentId').value;
+    const userId = document.getElementById('userId').value;
+    const activityId = document.getElementById('activitySelect').value;
+    const appointmentDate = document.getElementById('appointmentDateTime').value;
+    const notes = document.getElementById('appointmentNotes').value;
+    const status = document.getElementById('appointmentStatus').value;
+    
+    if (!userId || !activityId || !appointmentDate) {
+        alert('Por favor completa todos los campos requeridos');
+        return;
+    }
+    
+    try {
+        let response;
+        if (isEditMode) {
+            response = await fetch(`/appointments/${appointmentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    appointment_date: appointmentDate + ':00',
+                    notes: notes,
+                    status: status
+                })
+            });
+        } else {
+            response = await fetch(`/appointments/?user_id=${userId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    activity_id: parseInt(activityId),
+                    appointment_date: appointmentDate + ':00',
+                    notes: notes
+                })
+            });
+        }
+        
+        if (response.ok) {
+            alert(isEditMode ? 'Cita actualizada exitosamente' : 'Cita creada exitosamente');
+            appointmentModal.hide();
+            loadAppointments();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.detail);
+        }
+    } catch (error) {
+        alert('Error de conexión');
+    }
+}
+
+async function deleteAppointment(appointmentId) {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta cita?')) return;
+    
+    try {
+        const response = await fetch(`/appointments/${appointmentId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Cita eliminada exitosamente');
+            loadAppointments();
+        } else {
+            alert('Error al eliminar la cita');
+        }
+    } catch (error) {
+        alert('Error de conexión');
+    }
+}
+</script>
+{% endblock %}

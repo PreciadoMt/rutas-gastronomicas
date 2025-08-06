@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Rutas Gastronómicas{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-12">
+            <h2><i class="fas fa-tachometer-alt me-2"></i>Panel de Usuario</h2>
+            <hr>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5>Mis Reservas</h5>
+                            <h2 id="totalReservations">0</h2>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-calendar-check fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5>Completadas</h5>
+                            <h2 id="completedReservations">0</h2>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5>Pendientes</h5>
+                            <h2 id="pendingReservations">0</h2>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-clock fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-list me-2"></i>Mis Reservas Recientes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="reservationsTable">
+                            <thead>
+                                <tr>
+                                    <th>Actividad</th>
+                                    <th>Fecha</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Datos cargados dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-history me-2"></i>Historial de Reservas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="historyTable">
+                            <thead>
+                                <tr>
+                                    <th>Actividad</th>
+                                    <th>Fecha Original</th>
+                                    <th>Estado Final</th>
+                                    <th>Fecha Actualización</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Historial cargado dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const userId = localStorage.getItem('user_id');
+    if (!userId) {
+        window.location.href = '/users/auth/login';
+        return;
+    }
+    
+    loadUserReservations(userId);
+});
+
+async function loadUserReservations(userId) {
+    try {
+        const response = await fetch(`/appointments/?user_id=${userId}`);
+        const appointments = await response.json();
+        
+        updateDashboardStats(appointments);
+        updateReservationsTable(appointments);
+        updateHistoryTable(appointments);
+    } catch (error) {
+        console.error('Error loading reservations:', error);
+    }
+}
+
+function updateDashboardStats(appointments) {
+    const total = appointments.length;
+    const completed = appointments.filter(a => a.status === 'completed').length;
+    const pending = appointments.filter(a => a.status === 'scheduled').length;
+    
+    document.getElementById('totalReservations').textContent = total;
+    document.getElementById('completedReservations').textContent = completed;
+    document.getElementById('pendingReservations').textContent = pending;
+}
+
+function updateReservationsTable(appointments) {
+    const tbody = document.querySelector('#reservationsTable tbody');
+    tbody.innerHTML = '';
+    
+    const activeAppointments = appointments.filter(a => a.status === 'scheduled');
+    
+    activeAppointments.forEach(appointment => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${appointment.activity.name}</td>
+            <td>${new Date(appointment.appointment_date).toLocaleString()}</td>
+            <td><span class="badge bg-primary">${appointment.status}</span></td>
+            <td>
+                <button class="btn btn-sm btn-warning me-1" onclick="editAppointment(${appointment.id})">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="cancelAppointment(${appointment.id})">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function updateHistoryTable(appointments) {
+    const tbody = document.querySelector('#historyTable tbody');
+    tbody.innerHTML = '';
+    
+    appointments.forEach(appointment => {
+        const row = document.createElement('tr');
+        const statusClass = appointment.status === 'completed' ? 'success' : 
+                           appointment.status === 'cancelled' ? 'danger' : 'primary';
+        
+        row.innerHTML = `
+            <td>${appointment.activity.name}</td>
+            <td>${new Date(appointment.appointment_date).toLocaleString()}</td>
+            <td><span class="badge bg-${statusClass}">${appointment.status}</span></td>
+            <td>${new Date(appointment.updated_at).toLocaleString()}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+async function editAppointment(appointmentId) {
+    const newDate = prompt('Ingresa la nueva fecha y hora (YYYY-MM-DD HH:MM):');
+    if (!newDate) return;
+    
+    try {
+        const response = await fetch(`/appointments/${appointmentId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                appointment_date: newDate + ':00'
+            })
+        });
+        
+        if (response.ok) {
+            alert('Cita actualizada exitosamente');
+            location.reload();
+        } else {
+            alert('Error al actualizar la cita');
+        }
+    } catch (error) {
+        alert('Error de conexión');
+    }
+}
+
+async function cancelAppointment(appointmentId) {
+    if (!confirm('¿Estás seguro de que deseas cancelar esta cita?')) return;
+    
+    try {
+        const response = await fetch(`/appointments/${appointmentId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                status: 'cancelled'
+            })
+        });
+        
+        if (response.ok) {
+            alert('Cita cancelada exitosamente');
+            location.reload();
+        } else {
+            alert('Error al cancelar la cita');
+        }
+    } catch (error) {
+        alert('Error de conexión');
+    }
+}
+</script>
+{% endblock %}
