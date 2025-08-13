@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Actividades Gastronómicas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1><i class="fas fa-utensils me-2"></i>Gestión de Actividades Gastronómicas</h1>
+            <hr>
+        </div>
+    </div>
+    
+    <!-- Controles superiores -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <button class="btn btn-success" onclick="showCreateModal()">
+                <i class="fas fa-plus me-2"></i>Nueva Actividad
+            </button>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select" id="statusFilter" onchange="filterActivities()">
+                <option value="all">Todas</option>
+                <option value="active" selected>Activas</option>
+                <option value="inactive">Inactivas</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <input type="text" class="form-control" id="searchInput" placeholder="Buscar actividades..." onkeyup="searchActivities()">
+        </div>
+    </div>
+    
+    <!-- Lista de actividades -->
+    <div class="row" id="activitiesContainer">
+        {% for activity in activities %}
+        <div class="col-lg-6 mb-4 activity-item" 
+             data-status="{{ 'active' if activity.is_active else 'inactive' }}" 
+             data-name="{{ activity.name.lower() }}"
+             data-type="{{ activity.activity_type.lower() }}">
+            <div class="card h-100 {{ 'border-success' if activity.is_active else 'border-secondary' }}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <img src="{{ activity.image_url or '/static/images/default-activity.jpg' }}" 
+                             class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;" 
+                             alt="{{ activity.name }}">
+                        <span class="h5 mb-0">{{ activity.name }}</span>
+                    </div>
+                    <span class="badge {{ 'bg-success' if activity.is_active else 'bg-secondary' }}">
+                        {{ 'Activa' if activity.is_active else 'Inactiva' }}
+                    </span>
+                </div>
+                
+                <div class="card-body">
+                    <p class="card-text text-muted mb-2">{{ activity.description[:100] }}...</p>
+                    
+                    <div class="row mb-2">
+                        <div class="col-sm-6">
+                            <small class="text-muted d-block">
+                                <i class="fas fa-tag me-1"></i>{{ activity.activity_type }}
+                            </small>
+                        </div>
+                        <div class="col-sm-6">
+                            <small class="text-muted d-block">
+                                <i class="fas fa-map-marker-alt me-1"></i>{{ activity.location }}
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-sm-6">
+                            <small class="text-muted d-block">
+                                <i class="fas fa-clock me-1"></i>{{ activity.duration }}
+                            </small>
+                        </div>
+                        <div class="col-sm-6">
+                            <small class="text-success fw-bold">
+                                <i class="fas fa-dollar-sign me-1"></i>${{ activity.cost }} MXN
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary btn-sm" onclick="editActivity({{ activity.id }})">
+                            <i class="fas fa-edit me-1"></i>Editar
+                        </button>
+                        
+                        {% if activity.is_active %}
+                        <button class="btn btn-warning btn-sm" onclick="toggleActivityStatus({{ activity.id }})">
+                            <i class="fas fa-eye-slash me-1"></i>Desactivar
+                        </button>
+                        {% else %}
+                        <button class="btn btn-success btn-sm" onclick="toggleActivityStatus({{ activity.id }})">
+                            <i class="fas fa-eye me-1"></i>Activar
+                        </button>
+                        {% endif %}
+                        
+                        <button class="btn btn-danger btn-sm" onclick="deleteActivity({{ activity.id }})">
+                            <i class="fas fa-trash me-1"></i>Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal para crear/editar actividad -->
+<div class="modal fade" id="activityModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Nueva Actividad</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="activityForm">
+                    <input type="hidden" id="activityId">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="activityName" class="form-label">Nombre *</label>
+                                <input type="text" class="form-control" id="activityName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="activityType" class="form-label">Tipo de Actividad *</label>
+                                <select class="form-select" id="activityType" required>
+                                    <option value="Tour Gastronómico">Tour Gastronómico</option>
+                                    <option value="Taller">Taller</option>
+                                    <option value="Cata">Cata</option>
+                                    <option value="Experiencia Culinaria">Experiencia Culinaria</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="activityDescription" class="form-label">Descripción *</label>
+                        <textarea class="form-control" id="activityDescription" rows="3" required></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="activityLocation" class="form-label">Ubicación *</label>
+                                <input type="text" class="form-control" id="activityLocation" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="activityCity" class="form-label">Ciudad *</label>
+                                <select class="form-select" id="activityCity" required>
+                                    <option value="Centro Histórico">Centro Histórico</option>
+                                    <option value="Escuela Culinaria">Escuela Culinaria</option>
+                                    <option value="Tequisquiapan">Tequisquiapan</option>
+                                    <option value="Bernal">Bernal</option>
+                                    <option value="San Juan del Río">San Juan del Río</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="activityDuration" class="form-label">Duración *</label>
+                                <input type="text" class="form-control" id="activityDuration" 
+                                       placeholder="ej: 3 horas, 4 horas" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="activityCost" class="form-label">Precio (MXN) *</label>
+                                <input type="number" class="form-control" id="activityCost" 
+                                       step="0.01" min="0" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="activityImageUrl" class="form-label">URL de Imagen</label>
+                        <input type="url" class="form-control" id="activityImageUrl" 
+                               placeholder="https://ejemplo.com/imagen.jpg">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="saveActivity()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingActivityId = null;
+
+// Filtros y búsqueda
+function filterActivities() {
+    const filter = document.getElementById('statusFilter').value;
+    const activities = document.querySelectorAll('.activity-item');
+    
+    activities.forEach(activity => {
+        const status = activity.dataset.status;
+        if (filter === 'all' || status === filter) {
+            activity.style.display = 'block';
+        } else {
+            activity.style.display = 'none';
+        }
+    });
+}
+
+function searchActivities() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const activities = document.querySelectorAll('.activity-item');
+    
+    activities.forEach(activity => {
+        const name = activity.dataset.name;
+        const type = activity.dataset.type;
+        if (name.includes(searchTerm) || type.includes(searchTerm)) {
+            activity.style.display = 'block';
+        } else {
+            activity.style.display = 'none';
+        }
+    });
+}
+
+// Modal functions
+function showCreateModal() {
+    editingActivityId = null;
+    document.getElementById('modalTitle').textContent = 'Nueva Actividad';
+    document.getElementById('activityForm').reset();
+    document.getElementById('activityId').value = '';
+    new bootstrap.Modal(document.getElementById('activityModal')).show();
+}
+
+async function editActivity(activityId) {
+    editingActivityId = activityId;
+    document.getElementById('modalTitle').textContent = 'Editar Actividad';
+    
+    try {
+        const response = await fetch(`/activities/${activityId}`);
+        const activity = await response.json();
+        
+        document.getElementById('activityId').value = activity.id;
+        document.getElementById('activityName').value = activity.name;
+        document.getElementById('activityType').value = activity.activity_type;
+        document.getElementById('activityDescription').value = activity.description;
+        document.getElementById('activityLocation').value = activity.location;
+        document.getElementById('activityCity').value = activity.city;
+        document.getElementById('activityDuration').value = activity.duration;
+        document.getElementById('activityCost').value = activity.cost;
+        document.getElementById('activityImageUrl').value = activity.image_url || '';
+        
+        new bootstrap.Modal(document.getElementById('activityModal')).show();
+    } catch (error) {
+        alert('Error al cargar la actividad');
+    }
+}
+
+async function saveActivity() {
+    const formData = {
+        name: document.getElementById('activityName').value,
+        activity_type: document.getElementById('activityType').value,
+        description: document.getElementById('activityDescription').value,
+        location: document.getElementById('activityLocation').value,
+        city: document.getElementById('activityCity').value,
+        duration: document.getElementById('activityDuration').value,
+        cost: parseFloat(document.getElementById('activityCost').value),
+        image_url: document.getElementById('activityImageUrl').value || null
+    };
+    
+    try {
+        let response;
+        if (editingActivityId) {
+            response = await fetch(`/activities/${editingActivityId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+        } else {
+            response = await fetch('/activities/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+        }
+        
+        if (response.ok) {
+            alert(editingActivityId ? 'Actividad actualizada' : 'Actividad creada');
+            bootstrap.Modal.getInstance(document.getElementById('activityModal')).hide();
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.detail);
+        }
+    } catch (error) {
+        alert('Error de conexión');
+    }
+}
+
+async function toggleActivityStatus(activityId) {
+    try {
+        const response = await fetch(`/activities/${activityId}/toggle-status`, {
+            method: 'PATCH'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('Error al cambiar el estado');
+        }
+    } catch (error) {
+        alert('Error de conexión');
+    }
+}
+
+async function deleteActivity(activityId) {
+    if (!confirm('¿Estás seguro de que deseas eliminar permanentemente esta actividad?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/activities/${activityId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Actividad eliminada permanentemente');
+            location.reload();
+        } else {
+            alert('Error al eliminar la actividad');
+        }
+    } catch (error) {
+        alert('Error de conexión');
+    }
+}
+
+// Inicializar filtros
+document.addEventListener('DOMContentLoaded', function() {
+    filterActivities(); // Mostrar solo activas por defecto
+});
+</script>
+{% endblock %}

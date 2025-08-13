@@ -12,7 +12,7 @@ from app.middleware.cors import add_cors_middleware
 # --- IMPORTA TODOS LOS ESQUEMAS CON REFERENCIAS ---
 from app.schemas.appointment import AppointmentWithDetails
 from app.schemas.user import UserWithAppointments
-from app.schemas.activity import Activity  # <-- AÑADE ESTA LÍNEA. ESTA ES LA CLAVE.
+from app.schemas.activity import Activity  
 from app.schemas.user import User
 
 # Crear las tablas
@@ -39,14 +39,12 @@ app.include_router(activities.router)
 app.include_router(appointments.router)
 
 # --- RECONSTRUCCIÓN DE MODELOS ---
-# Ahora Pydantic puede encontrar la clase 'Activity' porque la importaste arriba.
 AppointmentWithDetails.model_rebuild()
 UserWithAppointments.model_rebuild()
 
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request, db: Session = Depends(get_db)):
-    # ... (el resto de tu código sin cambios)
     all_activities = db.query(activity.Activity).limit(6).all()
     return templates.TemplateResponse(
         "index.html", 
@@ -56,6 +54,14 @@ def read_root(request: Request, db: Session = Depends(get_db)):
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+@app.get("/admin/activities", response_class=HTMLResponse)
+def admin_activities(request: Request, db: Session = Depends(get_db)):
+    activities = db.query(activity.Activity).all()
+    return templates.TemplateResponse(
+        "manage_activities.html", 
+        {"request": request, "activities": activities}
+    )
 
 if __name__ == "__main__":
     import uvicorn

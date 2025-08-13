@@ -1,10 +1,10 @@
-from sqlalchemy import Column, Integer, String, Float, Text
+from sqlalchemy import Column, Integer, String, Float, Boolean, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 
 class Activity(Base):
     __tablename__ = "activities"
-
+    
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     description = Column(Text)
@@ -14,5 +14,7 @@ class Activity(Base):
     city = Column(String, index=True)
     state = Column(String, default="Querétaro")
     image_url = Column(String, nullable=True)
+    activity_type = Column(String, default="Tour Gastronómico")  # NUEVO CAMPO
+    is_active = Column(Boolean, default=True)  # NUEVO CAMPO - Para activar/desactivar sin eliminar
     
     appointments = relationship("Appointment", back_populates="activity")
